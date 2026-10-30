@@ -4,7 +4,7 @@ sed -i -e '/CONFIG_MAKE_TOOLCHAIN=y/d' configs/rockchip/01-nanopi
 sed -i -e 's/CONFIG_IB=y/# CONFIG_IB is not set/g' configs/rockchip/01-nanopi
 sed -i -e 's/CONFIG_SDK=y/# CONFIG_SDK is not set/g' configs/rockchip/01-nanopi
 
-# Passwall and Golang customization
+# Passwall, Golang and extra software customization
 if [ -d "friendlywrt" ]; then
     pushd friendlywrt
 
@@ -12,8 +12,8 @@ if [ -d "friendlywrt" ]; then
     ./scripts/feeds update -a
 
     # 1. Update Go language package to 1.27.x
-    rm -rf feeds/packages/lang/golang
-    git clone --depth 1 --branch 27.x https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
+#    rm -rf feeds/packages/lang/golang
+#    git clone --depth 1 --branch 27.x https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
 
     # 2. Remove conflicting / duplicate packages in feeds
     rm -rf feeds/packages/net/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls}
@@ -26,16 +26,21 @@ if [ -d "friendlywrt" ]; then
     rm -rf package/passwall-luci
     git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall package/passwall-luci
 
-    # 4. Install feeds
+    # 4. Clone Lucky package
+    rm -rf package/lucky
+    git clone --depth 1 https://github.com/gdy666/luci-app-lucky package/lucky
+
+    # 5. Install feeds
     ./scripts/feeds install -a
 
     popd
 fi
 
-# Enable Passwall configs in configs/rockchip/*
+# Enable Passwall & extra packages in configs/rockchip/*
 for cfg in configs/rockchip/01-nanopi configs/rockchip/*; do
     if [ -f "$cfg" ]; then
         cat << 'EOF' >> "$cfg"
+# Passwall
 CONFIG_PACKAGE_luci-app-passwall=y
 CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
 # CONFIG_PACKAGE_luci-app-passwall_Iptables_Transparent_Proxy is not set
@@ -59,8 +64,19 @@ CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Geodata=y
 CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y
 # CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray_Plugin is not set
 CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Geoview=y
+
+# FTP 服务器 (vsftpd)
+CONFIG_PACKAGE_luci-app-vsftpd=y
+CONFIG_PACKAGE_luci-i18n-vsftpd-zh-cn=y
+CONFIG_PACKAGE_vsftpd=y
+
+# LUCKY (大吉)
+CONFIG_PACKAGE_luci-app-lucky=y
+CONFIG_PACKAGE_luci-i18n-lucky-zh-cn=y
+CONFIG_PACKAGE_lucky=y
 EOF
     fi
 done
+
 
 

@@ -34,8 +34,10 @@ jobs:
     if: github.event.repository.owner.id == github.event.sender.id
     strategy:
       matrix:
-        VERSION: ['25.12', '24.10']
-        SET: [docker, non-docker]
+#        VERSION: ['25.12', '24.10']
+#        SET: [docker, non-docker]
+        VERSION: ['25.12']
+        SET: [docker]
 
     steps:
     - name: Checkout
@@ -188,10 +190,12 @@ jobs:
 
     strategy:
       matrix:
-        VERSION: ['25.12', '24.10']
+#        VERSION: ['25.12', '24.10']
+        VERSION: ['25.12']
 #        CPU: [rk3328, rk3528, rk3399, rk3566, rk3568, rk3576, rk3588]
         CPU: [rk3528] # <--- 改成只留 rk3528（对应 R28S 机型）
-        SET: [docker, non-docker]
+#        SET: [docker, non-docker]
+        SET: [docker]
     steps:
     - name: Checkout
       uses: actions/checkout@v4
