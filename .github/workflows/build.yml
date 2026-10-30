@@ -1,6 +1,7 @@
 name: Build FriendlyWrt
 
 on:
+  workflow_dispatch: # 添加这行以支持手动点击 Run 按钮运行
   watch:
     types: started
 jobs:
