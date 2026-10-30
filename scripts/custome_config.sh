@@ -33,16 +33,43 @@ if [ -d "friendlywrt" ]; then
     # 5. Install feeds
     ./scripts/feeds install -a
 
+    # 6. Download Prebuilt Binaries (Solution for Golang version conflict)
+    # This avoids compiling xray/sing-box with old Golang and breaking Docker
+    mkdir -p files/usr/bin
+
+    # Download Xray
+    XRAY_VERSION=$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases/latest | grep tag_name | cut -d \" -f 4)
+    curl -L https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-linux-arm64-v8a.zip -o xray.zip
+    unzip -o xray.zip xray -d files/usr/bin/
+    chmod +x files/usr/bin/xray
+    rm -f xray.zip
+
+    # Download Sing-Box
+    SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep tag_name | cut -d \" -f 4 | sed 's/v//')
+    curl -L https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-arm64.tar.gz -o sing-box.tar.gz
+    tar -zxvf sing-box.tar.gz --strip-components=1 -C files/usr/bin/ sing-box-${SB_VERSION}-linux-arm64/sing-box
+    chmod +x files/usr/bin/sing-box
+    rm -f sing-box.tar.gz
+
     popd
 fi
 
 # Enable Passwall & extra packages in configs/rockchip/*
 for cfg in configs/rockchip/01-nanopi configs/rockchip/*; do
     if [ -f "$cfg" ]; then
+        # Remove existing xray/sing-box package selections if any
+        sed -i -e '/CONFIG_PACKAGE_xray-core=y/d' "$cfg"
+        sed -i -e '/CONFIG_PACKAGE_sing-box=y/d' "$cfg"
+
         cat << 'EOF' >> "$cfg"
 # Passwall
 CONFIG_PACKAGE_luci-app-passwall=y
 CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
+# Passwall Binaries Selection (We use prebuilt, so we disable source compilation)
+# CONFIG_PACKAGE_xray-core is not set
+# CONFIG_PACKAGE_sing-box is not set
+# CONFIG_PACKAGE_v2ray-core is not set
+# CONFIG_PACKAGE_v2ray-plugin is not set
 # CONFIG_PACKAGE_luci-app-passwall_Iptables_Transparent_Proxy is not set
 CONFIG_PACKAGE_luci-app-passwall_Nftables_Transparent_Proxy=y
 CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Haproxy=y
