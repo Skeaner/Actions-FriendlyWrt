@@ -22,6 +22,8 @@ if [ -d "friendlywrt" ]; then
     # 3. Clone passwall-packages and passwall-luci directly to package/
     rm -rf package/passwall-packages
     git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages package/passwall-packages
+    # Remove Go-based packages to avoid compilation failure with old Golang
+    rm -rf package/passwall-packages/{xray-core,sing-box,v2ray-geodata,v2ray-core,geoview}
 
     rm -rf package/passwall-luci
     git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall package/passwall-luci
