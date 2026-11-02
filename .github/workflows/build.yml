@@ -32,6 +32,8 @@ jobs:
     needs: prepare_release
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
+    env:
+      FORCE_UNSAFE_CONFIGURE: "1"
     strategy:
       matrix:
 #        VERSION: ['25.12', '24.10']
@@ -434,4 +436,3 @@ jobs:
             echo "Deleting asset: $asset"
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY"
           done
-

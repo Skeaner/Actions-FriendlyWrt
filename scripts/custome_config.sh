@@ -40,14 +40,14 @@ if [ -d "friendlywrt" ]; then
     mkdir -p files/usr/bin
 
     # Download Xray
-    XRAY_VERSION=$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases/latest | grep tag_name | cut -d \" -f 4)
+    XRAY_VERSION='v26.10.31'
     curl -L https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-linux-arm64-v8a.zip -o xray.zip
     unzip -o xray.zip xray -d files/usr/bin/
     chmod +x files/usr/bin/xray
     rm -f xray.zip
 
     # Download Sing-Box
-    SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep tag_name | cut -d \" -f 4 | sed 's/v//')
+    SB_VERSION='1.14.4'
     curl -L https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-arm64.tar.gz -o sing-box.tar.gz
     tar -zxvf sing-box.tar.gz --strip-components=1 -C files/usr/bin/ sing-box-${SB_VERSION}-linux-arm64/sing-box
     chmod +x files/usr/bin/sing-box
