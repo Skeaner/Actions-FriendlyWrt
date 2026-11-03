@@ -186,8 +186,10 @@ jobs:
         overwrite: true
 
   build_img:
-    needs: [prepare_release,build_friendlywrt]
+    # needs: [prepare_release,build_friendlywrt]
     runs-on: ubuntu-22.04
+    env:
+      RELEASE_TAG: FriendlyWrt-2026-11-03
     if: github.event.repository.owner.id == github.event.sender.id
 
     strategy:
@@ -247,7 +249,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: ${{ github.repository }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        # tag: ${{ needs.prepare_release.outputs.release_tag }}
+        tag: ${{ env.RELEASE_TAG }}
         fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
 
     - name: Download friendlywrt rootfs (docker)
@@ -257,7 +260,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: ${{ github.repository }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        # tag: ${{ needs.prepare_release.outputs.release_tag }}
+        tag: ${{ env.RELEASE_TAG }}
         fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
 
     - name: Download host package-manager bundle
@@ -267,7 +271,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: ${{ github.repository }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        # tag: ${{ needs.prepare_release.outputs.release_tag }}
+        tag: ${{ env.RELEASE_TAG }}
         fileName: "host-pm-${{ matrix.VERSION }}.tgz"
 
     - name: Prepare config
@@ -337,33 +342,17 @@ jobs:
         ## If you need to modify the kernel configuration, please edit the script below
         # source ../scripts/custome_kernel_config.sh
 
-        # Patch compatibility for rtw88 / older kernel headers:
-        # FIELD_PREP_CONST is missing in some kernel versions, while FIELD_PREP is available.
-        # This prevents:
-        #   implicit declaration of function 'FIELD_PREP_CONST'
-        # which is treated as an error because warnings are enabled as errors.
-        if [ -f kernel/include/linux/bitfield.h ]; then
-          if ! grep -q "FIELD_PREP_CONST" kernel/include/linux/bitfield.h; then
-            awk '
-              BEGIN { inserted = 0 }
-              /#define FIELD_PREP/ && !inserted {
-                print
-                print ""
-                print "#ifndef FIELD_PREP_CONST"
-                print "#define FIELD_PREP_CONST(_mask, _val) FIELD_PREP(_mask, _val)"
-                print "#endif"
-                inserted = 1
-                next
-              }
-              { print }
-            ' kernel/include/linux/bitfield.h > /tmp/bitfield.h && mv /tmp/bitfield.h kernel/include/linux/bitfield.h
-          fi
-        fi
-
-        # Some generated/out-of-tree rtw88 files may still call FIELD_PREP_CONST directly.
+        # Older kernel headers do not provide FIELD_PREP_CONST, but the
+        # compiled rtw88 sources may use it.
         if [ -d scripts/sd-fuse/out/rtw88 ]; then
           find scripts/sd-fuse/out/rtw88 -type f \( -name '*.c' -o -name '*.h' \) \
             -exec sed -i 's/FIELD_PREP_CONST/FIELD_PREP/g' {} +
+        fi
+
+        if [ -f kernel/include/linux/bitfield.h ] &&
+           ! grep -q 'FIELD_PREP_CONST' kernel/include/linux/bitfield.h; then
+          printf '\n#ifndef FIELD_PREP_CONST\n#define FIELD_PREP_CONST(_mask, _val) FIELD_PREP(_mask, _val)\n#endif\n' \
+            >> kernel/include/linux/bitfield.h
         fi
 
         ./build.sh uboot
@@ -405,7 +394,8 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./artifact/${{ steps.config.outputs.archive_filename }}
         asset_name: ${{ steps.config.outputs.archive_filename }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        # tag: ${{ needs.prepare_release.outputs.release_tag }}
+        tag: ${{ env.RELEASE_TAG }}
         overwrite: true
 
     - name: Upload XYZ.img.gz to release
@@ -414,7 +404,8 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./artifact/${{ steps.config.outputs.img_filename }}.gz
         asset_name: ${{ steps.config.outputs.img_filename }}.gz
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        # tag: ${{ needs.prepare_release.outputs.release_tag }}
+        tag: ${{ env.RELEASE_TAG }}
         overwrite: true
 
   cleanup_intermediate_assets:
