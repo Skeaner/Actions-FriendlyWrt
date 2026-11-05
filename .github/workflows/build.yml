@@ -1,9 +1,39 @@
 name: Build FriendlyWrt
 
 on:
-  workflow_dispatch: # 添加这行以支持手动点击 Run 按钮运行
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag; leave empty to use FriendlyWrt-yyyy-MM-dd"
+        required: false
+        default: ""
+        type: string
+      include_25_12:
+        description: "Build FriendlyWrt 25.12"
+        required: false
+        default: true
+        type: boolean
+      include_24_10:
+        description: "Build FriendlyWrt 24.10"
+        required: false
+        default: false
+        type: boolean
+      include_non_docker:
+        description: "Build non-docker"
+        required: false
+        default: true
+        type: boolean
+      include_docker:
+        description: "Build docker"
+        required: false
+        default: false
+        type: boolean
   watch:
     types: started
+
+permissions:
+  contents: write
+
 jobs:
   prepare_release:
     runs-on: ubuntu-22.04
@@ -12,8 +42,58 @@ jobs:
     - name: Get release tag
       id: release_tag
       run: |
-        release_tag="${{ vars.TAG }}"
+        release_tag="${{ inputs.tag }}"
+        if [ -z "$release_tag" ]; then
+          release_tag="FriendlyWrt-$(date -u +%Y-%m-%d)"
+        fi
         echo "release_tag=$release_tag" >> $GITHUB_OUTPUT
+
+    - name: Build selection matrices
+      id: matrices
+      env:
+        INCLUDE_25_12: ${{ inputs.include_25_12 }}
+        INCLUDE_24_10: ${{ inputs.include_24_10 }}
+        INCLUDE_NON_DOCKER: ${{ inputs.include_non_docker }}
+        INCLUDE_DOCKER: ${{ inputs.include_docker }}
+      run: |
+        if [ "$GITHUB_EVENT_NAME" == "watch" ]; then
+          INCLUDE_25_12=true
+          INCLUDE_24_10=false
+          INCLUDE_NON_DOCKER=true
+          INCLUDE_DOCKER=false
+        fi
+
+        versions='['
+        if [ "$INCLUDE_25_12" == "true" ]; then
+          versions="${versions}\"25.12\""
+        fi
+        if [ "$INCLUDE_24_10" == "true" ]; then
+          [ "$versions" != "[" ] && versions="${versions},"
+          versions="${versions}\"24.10\""
+        fi
+        versions="${versions}]"
+
+        sets='['
+        if [ "$INCLUDE_NON_DOCKER" == "true" ]; then
+          sets="${sets}\"non-docker\""
+        fi
+        if [ "$INCLUDE_DOCKER" == "true" ]; then
+          [ "$sets" != "[" ] && sets="${sets},"
+          sets="${sets}\"docker\""
+        fi
+        sets="${sets}]"
+
+        if [ "$versions" == "[]" ]; then
+          echo "::error::Select at least one FriendlyWrt version."
+          exit 1
+        fi
+        if [ "$sets" == "[]" ]; then
+          echo "::error::Select at least one build type."
+          exit 1
+        fi
+
+        echo "versions=$versions" >> $GITHUB_OUTPUT
+        echo "sets=$sets" >> $GITHUB_OUTPUT
 
     - name: Create empty release
       id: release
@@ -27,17 +107,19 @@ jobs:
     outputs:
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
       upload_url: ${{ steps.release.outputs.upload_url }}
+      versions: ${{ steps.matrices.outputs.versions }}
+      sets: ${{ steps.matrices.outputs.sets }}
 
   build_friendlywrt:
-    # needs: prepare_release
+    needs: prepare_release
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
     env:
       FORCE_UNSAFE_CONFIGURE: "1"
     strategy:
       matrix:
-        VERSION: ${{ fromJSON(vars.VERSION) }}
-        SET: ${{ fromJSON(vars.SET) }}
+        VERSION: ${{ fromJSON(needs.prepare_release.outputs.versions) }}
+        SET: ${{ fromJSON(needs.prepare_release.outputs.sets) }}
 
     steps:
     - name: Checkout
@@ -134,7 +216,6 @@ jobs:
 
     - name: Create host package-manager bundle
       id: create_host_pm_package
-      if: matrix.SET == 'non-docker'
       run: |
         cd project
         source .current_config.mk
@@ -161,7 +242,8 @@ jobs:
           fi
         fi
 
-        host_pm_filename="host-pm-${{ matrix.VERSION }}.tgz"
+        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
+        host_pm_filename="host-pm-${{ matrix.VERSION }}${SUFFIX}.tgz"
         tar czf ../artifact/${host_pm_filename} "$PM_BIN"
         echo "host_pm_filename=$host_pm_filename" >> $GITHUB_OUTPUT
 
@@ -171,32 +253,29 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./artifact/${{ steps.create_rootfs_package.outputs.rootfs_filename }}
         asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
-        # tag: ${{ needs.prepare_release.outputs.release_tag }}
-        tag: ${{ vars.TAG }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
         overwrite: true
 
     - name: Upload host package-manager bundle
-      if: matrix.SET == 'non-docker'
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./artifact/${{ steps.create_host_pm_package.outputs.host_pm_filename }}
         asset_name: ${{ steps.create_host_pm_package.outputs.host_pm_filename }}
-        # tag: ${{ needs.prepare_release.outputs.release_tag }}
-        tag: ${{ vars.TAG }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
         overwrite: true
 
   build_img:
-    # needs: [prepare_release,build_friendlywrt]
+    needs: [prepare_release, build_friendlywrt]
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
 
     strategy:
       matrix:
-        VERSION: ${{ fromJSON(vars.VERSION) }}
+        VERSION: ${{ fromJSON(needs.prepare_release.outputs.versions) }}
 #        CPU: [rk3328, rk3528, rk3399, rk3566, rk3568, rk3576, rk3588]
         CPU: [rk3528] # <--- 改成只留 rk3528（对应 R28S 机型）
-        SET: ${{ fromJSON(vars.SET) }}
+        SET: ${{ fromJSON(needs.prepare_release.outputs.sets) }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -246,8 +325,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: ${{ github.repository }}
-        # tag: ${{ needs.prepare_release.outputs.release_tag }}
-        tag: ${{ vars.TAG }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
         fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}.tgz"
 
     - name: Download friendlywrt rootfs (docker)
@@ -257,20 +335,17 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: ${{ github.repository }}
-        # tag: ${{ needs.prepare_release.outputs.release_tag }}
-        tag: ${{ vars.TAG }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
         fileName: "rootfs-friendlywrt-${{ matrix.VERSION }}-docker.tgz"
 
     - name: Download host package-manager bundle
-      if: matrix.SET == 'non-docker'
       uses: robinraju/release-downloader@v1.6
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         repository: ${{ github.repository }}
-        # tag: ${{ needs.prepare_release.outputs.release_tag }}
-        tag: ${{ vars.TAG }}
-        fileName: "host-pm-${{ matrix.VERSION }}.tgz"
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
+        fileName: "host-pm-${{ matrix.VERSION }}${{ matrix.SET == 'docker' && '-docker' || '' }}.tgz"
 
     - name: Prepare config
       id: config
@@ -328,10 +403,16 @@ jobs:
         tar xzf "../rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
 
     - name: Unpack host package-manager bundle
-      if: matrix.SET == 'non-docker'
       run: |
         cd project
-        tar xzf "../host-pm-${{ matrix.VERSION }}.tgz"
+        SUFFIX="${{ matrix.SET == 'docker' && '-docker' || '' }}"
+        tar xzf "../host-pm-${{ matrix.VERSION }}${SUFFIX}.tgz"
+
+    - name: Install unsigned prebuilt eMMC tools
+      run: |
+        sed -i 's/\r$//' ../scripts/install_prebuilt_apks.sh
+        cd project
+        ../scripts/install_prebuilt_apks.sh "$(pwd)" "$(cd .. && pwd)"
 
     - name: Compile uboot and kernel
       run: |
@@ -379,8 +460,7 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./artifact/${{ steps.config.outputs.archive_filename }}
         asset_name: ${{ steps.config.outputs.archive_filename }}
-        # tag: ${{ needs.prepare_release.outputs.release_tag }}
-        tag: ${{ vars.TAG }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
         overwrite: true
 
     - name: Upload XYZ.img.gz to release
@@ -390,19 +470,18 @@ jobs:
         file: ./artifact/${{ steps.config.outputs.img_filename }}.gz
         asset_name: ${{ steps.config.outputs.img_filename }}.gz
         # tag: ${{ needs.prepare_release.outputs.release_tag }}
-        tag: ${{ vars.TAG }}
+        tag: ${{ needs.prepare_release.outputs.release_tag }}
         overwrite: true
 
   cleanup_intermediate_assets:
-    # needs: [prepare_release, build_img]
+    needs: [prepare_release, build_img]
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
     steps:
     - name: Delete intermediate assets from release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
-        RELEASE_TAG: ${{ vars.TAG }}
+        RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
       run: |
         gh release view "$RELEASE_TAG" \
           --repo "$GITHUB_REPOSITORY" \
