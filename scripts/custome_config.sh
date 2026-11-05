@@ -53,6 +53,13 @@ if [ -d "friendlywrt" ]; then
     chmod +x files/usr/bin/sing-box
     rm -f sing-box.tar.gz
 
+    # Glibc compatibility symlinks for musl (required by sing-box arm64 prebuilt binary)
+    mkdir -p files/lib
+    ln -sf ld-musl-aarch64.so.1 files/lib/ld-linux-aarch64.so.1
+    ln -sf ld-musl-aarch64.so.1 files/lib/libc.so.6
+    ln -sf ld-musl-aarch64.so.1 files/lib/libpthread.so.0
+    ln -sf ld-musl-aarch64.so.1 files/lib/libdl.so.2
+
     popd
 fi
 
@@ -93,11 +100,6 @@ CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Geodata=y
 CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y
 # CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray_Plugin is not set
 CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Geoview=y
-
-# FTP 服务器 (vsftpd)
-CONFIG_PACKAGE_luci-app-vsftpd=y
-CONFIG_PACKAGE_luci-i18n-vsftpd-zh-cn=y
-CONFIG_PACKAGE_vsftpd=y
 
 # LUCKY (大吉)
 CONFIG_PACKAGE_luci-app-lucky=y
