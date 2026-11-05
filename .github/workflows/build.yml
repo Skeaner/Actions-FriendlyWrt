@@ -84,6 +84,7 @@ jobs:
     - name: Apply customizations
       run: |
         cd project
+        sed -i 's/\r$//' ../scripts/custome_config.sh
         source ../scripts/custome_config.sh
 
     - name: Prepare dot config and feeds
@@ -339,6 +340,7 @@ jobs:
     - name: Compile uboot and kernel
       run: |
         cd project
+        sed -i 's/\r$//' ../scripts/custome_kernel_config.sh
         ## If you need to modify the kernel configuration, please edit the script below
         ./build.sh uboot
         source ../scripts/custome_kernel_config.sh
@@ -352,10 +354,6 @@ jobs:
             -exec sed -i 's/FIELD_PREP_CONST[[:space:]]*(/FIELD_PREP(/g' {} +
 
           RTW8723BS=scripts/sd-fuse/out/rtw88/rtw8723bs.c
-          if [ -f "$RTW8723BS" ] &&
-             ! grep -q '#include <linux/mmc/sdio_ids.h>' "$RTW8723BS"; then
-            sed -i '0,/^#include <linux\/mmc\/sdio_func.h>/s//&\n#include <linux\/mmc\/sdio_ids.h>/' "$RTW8723BS"
-          fi
 
           # Kernel 6.1 predates these IDs. Use numeric values directly so
           # this also works when rtw88 does not include the sdio_ids header.
@@ -368,7 +366,7 @@ jobs:
           grep -nE 'SDIO_DEVICE\(|0x024c|0xb723' "$RTW8723BS"
         fi
 
-       ./build.sh kernel
+        ./build.sh kernel
 
         ## If you want to compile a driver from source, here is an example
         # case ${{ matrix.CPU }} in
