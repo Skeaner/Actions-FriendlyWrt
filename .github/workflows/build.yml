@@ -42,7 +42,7 @@ jobs:
     - name: Get release tag
       id: release_tag
       run: |
-        release_tag="${{ inputs.tag }}"
+        release_tag="${{ github.event.inputs.tag }}"
         if [ -z "$release_tag" ]; then
           release_tag="FriendlyWrt-$(date -u +%Y-%m-%d)"
         fi
@@ -51,10 +51,10 @@ jobs:
     - name: Build selection matrices
       id: matrices
       env:
-        INCLUDE_25_12: ${{ inputs.include_25_12 }}
-        INCLUDE_24_10: ${{ inputs.include_24_10 }}
-        INCLUDE_NON_DOCKER: ${{ inputs.include_non_docker }}
-        INCLUDE_DOCKER: ${{ inputs.include_docker }}
+        INCLUDE_25_12: ${{ github.event.inputs.include_25_12 }}
+        INCLUDE_24_10: ${{ github.event.inputs.include_24_10 }}
+        INCLUDE_NON_DOCKER: ${{ github.event.inputs.include_non_docker }}
+        INCLUDE_DOCKER: ${{ github.event.inputs.include_docker }}
       run: |
         if [ "$GITHUB_EVENT_NAME" == "watch" ]; then
           INCLUDE_25_12=true
@@ -161,112 +161,118 @@ jobs:
         repo sync -c scripts/sd-fuse  --no-clone-bundle
         repo sync -c toolchain  --no-clone-bundle
 
-    - name: Apply customizations
-      run: |
-        cd project
-        sed -i 's/\r$//' ../scripts/custome_config.sh
-        source ../scripts/custome_config.sh
+    # - name: Patch DTS for USB Host Mode
+    #   run: |
+    #     cd project
+    #     find kernel/arch/arm64/boot/dts/rockchip/ -name "rk3528-nanopi-common.dtsi" -exec sed -i 's/dr_mode = "otg";/dr_mode = "host";/g' {} +
 
-    - name: Prepare dot config and feeds
-      run: |
-        cd project
-        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
-        DIST_DIR=friendlywrt$(echo ${{ matrix.VERSION }}|awk -F . '{print $1}')${SUFFIX}
-        CONFIG=rockchip${SUFFIX}
-        cat > .current_config.mk <<EOL
-        . device/friendlyelec/rk3399/base.mk
-        TARGET_IMAGE_DIRNAME=${DIST_DIR}
-        TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
-        EOL
-        DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
+    # - name: Apply customizations
+    #   run: |
+    #     cd project
+    #     sed -i 's/\r$//' ../scripts/custome_config.sh
+    #     source ../scripts/custome_config.sh
 
-    - name: Download package
-      run: |
-        cd project/friendlywrt
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+    # - name: Prepare dot config and feeds
+    #   run: |
+    #     cd project
+    #     [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
+    #     DIST_DIR=friendlywrt$(echo ${{ matrix.VERSION }}|awk -F . '{print $1}')${SUFFIX}
+    #     CONFIG=rockchip${SUFFIX}
+    #     cat > .current_config.mk <<EOL
+    #     . device/friendlyelec/rk3399/base.mk
+    #     TARGET_IMAGE_DIRNAME=${DIST_DIR}
+    #     TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
+    #     EOL
+    #     DEBUG_DOT_CONFIG=1 ./build.sh friendlywrt
 
-    - name: Compile friendlyWrt
-      id: compile
-      continue-on-error: true
-      run: |
-        cd project/friendlywrt
-        if ! make -j$(nproc); then
-          echo "::warning::parallel build failed, retrying with V=s"
-          make -j1 V=s
-        fi
+    # - name: Download package
+    #   run: |
+    #     cd project/friendlywrt
+    #     make download -j8
+    #     find dl -size -1024c -exec ls -l {} \;
+    #     find dl -size -1024c -exec rm -f {} \;
 
-    - name: Check the result and try again
-      if: steps.compile.outcome == 'failure'
-      run: |
-        cd project/friendlywrt
-        make -j1 V=s
+    # - name: Compile friendlyWrt
+    #   id: compile
+    #   continue-on-error: true
+    #   run: |
+    #     cd project/friendlywrt
+    #     if ! make -j$(nproc); then
+    #       echo "::warning::parallel build failed, retrying with V=s"
+    #       make -j1 V=s
+    #     fi
 
-    - name: Create rootfs package
-      id: create_rootfs_package
-      run: |
-        cd project
-        source .current_config.mk
-        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
-        rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
-        tar czf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS} \
-              ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_PACKAGE_DIR}
-        echo "rootfs_filename=$rootfs_filename" >> $GITHUB_OUTPUT
+    # - name: Check the result and try again
+    #   if: steps.compile.outcome == 'failure'
+    #   run: |
+    #     cd project/friendlywrt
+    #     make -j1 V=s
 
-    - name: Create host package-manager bundle
-      id: create_host_pm_package
-      run: |
-        cd project
-        source .current_config.mk
-        PM_BIN=
-        [ -f ${FRIENDLYWRT_SRC}/staging_dir/host/bin/apk ]  && PM_BIN=${FRIENDLYWRT_SRC}/staging_dir/host/bin/apk
-        [ -f ${FRIENDLYWRT_SRC}/staging_dir/host/bin/opkg ] && PM_BIN=${FRIENDLYWRT_SRC}/staging_dir/host/bin/opkg
-        if [ -z "$PM_BIN" ]; then
-          echo "ERROR: neither apk nor opkg found under ${FRIENDLYWRT_SRC}/staging_dir/host/bin/"
-          exit 1
-        fi
-        echo "Detected host package manager: $PM_BIN"
+    # - name: Create rootfs package
+    #   id: create_rootfs_package
+    #   run: |
+    #     cd project
+    #     source .current_config.mk
+    #     [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
+    #     rootfs_filename="rootfs-friendlywrt-${{ matrix.VERSION }}${SUFFIX}.tgz"
+    #     tar czf ../artifact/${rootfs_filename} ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_ROOTFS} \
+    #           ${FRIENDLYWRT_SRC}/${FRIENDLYWRT_PACKAGE_DIR}
+    #     echo "rootfs_filename=$rootfs_filename" >> $GITHUB_OUTPUT
 
-        ldd_out=$(ldd "$PM_BIN" 2>&1 || true)
-        echo "$ldd_out"
-        if ! echo "$ldd_out" | grep -q "not a dynamic executable"; then
-          bad_paths=$(echo "$ldd_out" | grep -oE '=> /[^ ]+' | sed 's|=> ||' \
-                       | grep -vE '^/(lib|lib64|usr/lib)/' || true)
-          not_found=$(echo "$ldd_out" | grep -F "not found" || true)
-          if [ -n "$bad_paths" ] || [ -n "$not_found" ]; then
-            echo "ERROR: $PM_BIN has non-portable dynamic dependencies:"
-            [ -n "$bad_paths" ] && { echo "non-system paths:"; echo "$bad_paths"; }
-            [ -n "$not_found" ] && { echo "unresolved:"; echo "$not_found"; }
-            exit 1
-          fi
-        fi
+    # - name: Create host package-manager bundle
+    #   id: create_host_pm_package
+    #   run: |
+    #     cd project
+    #     source .current_config.mk
+    #     PM_BIN=
+    #     [ -f ${FRIENDLYWRT_SRC}/staging_dir/host/bin/apk ]  && PM_BIN=${FRIENDLYWRT_SRC}/staging_dir/host/bin/apk
+    #     [ -f ${FRIENDLYWRT_SRC}/staging_dir/host/bin/opkg ] && PM_BIN=${FRIENDLYWRT_SRC}/staging_dir/host/bin/opkg
+    #     if [ -z "$PM_BIN" ]; then
+    #       echo "ERROR: neither apk nor opkg found under ${FRIENDLYWRT_SRC}/staging_dir/host/bin/"
+    #       exit 1
+    #     fi
+    #     echo "Detected host package manager: $PM_BIN"
 
-        [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
-        host_pm_filename="host-pm-${{ matrix.VERSION }}${SUFFIX}.tgz"
-        tar czf ../artifact/${host_pm_filename} "$PM_BIN"
-        echo "host_pm_filename=$host_pm_filename" >> $GITHUB_OUTPUT
+    #     ldd_out=$(ldd "$PM_BIN" 2>&1 || true)
+    #     echo "$ldd_out"
+    #     if ! echo "$ldd_out" | grep -q "not a dynamic executable"; then
+    #       bad_paths=$(echo "$ldd_out" | grep -oE '=> /[^ ]+' | sed 's|=> ||' \
+    #                    | grep -vE '^/(lib|lib64|usr/lib)/' || true)
+    #       not_found=$(echo "$ldd_out" | grep -F "not found" || true)
+    #       if [ -n "$bad_paths" ] || [ -n "$not_found" ]; then
+    #         echo "ERROR: $PM_BIN has non-portable dynamic dependencies:"
+    #         [ -n "$bad_paths" ] && { echo "non-system paths:"; echo "$bad_paths"; }
+    #         [ -n "$not_found" ] && { echo "unresolved:"; echo "$not_found"; }
+    #         exit 1
+    #       fi
+    #     fi
 
-    - name: Upload rootfs package
-      uses: svenstaro/upload-release-action@v2
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: ./artifact/${{ steps.create_rootfs_package.outputs.rootfs_filename }}
-        asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
-        overwrite: true
+    #     [ "${{ matrix.SET }}" == "docker" ] && SUFFIX="-docker"
+    #     host_pm_filename="host-pm-${{ matrix.VERSION }}${SUFFIX}.tgz"
+    #     tar czf ../artifact/${host_pm_filename} "$PM_BIN"
+    #     echo "host_pm_filename=$host_pm_filename" >> $GITHUB_OUTPUT
 
-    - name: Upload host package-manager bundle
-      uses: svenstaro/upload-release-action@v2
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: ./artifact/${{ steps.create_host_pm_package.outputs.host_pm_filename }}
-        asset_name: ${{ steps.create_host_pm_package.outputs.host_pm_filename }}
-        tag: ${{ needs.prepare_release.outputs.release_tag }}
-        overwrite: true
+    # - name: Upload rootfs package
+    #   uses: svenstaro/upload-release-action@v2
+    #   with:
+    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+    #     file: ./artifact/${{ steps.create_rootfs_package.outputs.rootfs_filename }}
+    #     asset_name: ${{ steps.create_rootfs_package.outputs.rootfs_filename }}
+    #     tag: ${{ needs.prepare_release.outputs.release_tag }}
+    #     overwrite: true
+
+    # - name: Upload host package-manager bundle
+    #   uses: svenstaro/upload-release-action@v2
+    #   with:
+    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+    #     file: ./artifact/${{ steps.create_host_pm_package.outputs.host_pm_filename }}
+    #     asset_name: ${{ steps.create_host_pm_package.outputs.host_pm_filename }}
+    #     tag: ${{ needs.prepare_release.outputs.release_tag }}
+    #     overwrite: true
 
   build_img:
-    needs: [prepare_release, build_friendlywrt]
+    # needs: [prepare_release, build_friendlywrt]
+    needs: [prepare_release]
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
 
@@ -410,9 +416,9 @@ jobs:
 
     - name: Install unsigned prebuilt eMMC tools
       run: |
-        sed -i 's/\r$//' ../scripts/install_prebuilt_apks.sh
         cd project
-        ../scripts/install_prebuilt_apks.sh "$(pwd)" "$(cd .. && pwd)"
+        sed -i 's/\r$//' ../scripts/install_prebuilt_apks.sh
+        bash ../scripts/install_prebuilt_apks.sh "$(pwd)" "$GITHUB_WORKSPACE"
 
     - name: Compile uboot and kernel
       run: |

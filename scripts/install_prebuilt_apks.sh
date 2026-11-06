@@ -37,7 +37,7 @@ for apk_file in "$APP_APK" "$I18N_APK"; do
     fi
 done
 
-"$PM_BIN" --root "$ROOTFS_DIR" add --allow-untrusted \
+"$PM_BIN" --root "$ROOTFS_DIR" add --allow-untrusted --no-network --no-scripts \
     "$APP_APK" "$I18N_APK"
 
 "$PM_BIN" --root "$ROOTFS_DIR" info luci-app-emmc-tools >/dev/null
