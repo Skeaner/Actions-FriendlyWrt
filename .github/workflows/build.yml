@@ -409,11 +409,11 @@ jobs:
         SUFFIX="${{ matrix.SET == 'docker' && '-docker' || '' }}"
         tar xzf "../host-pm-${{ matrix.VERSION }}${SUFFIX}.tgz"
 
-    # - name: Install unsigned prebuilt eMMC tools
-    #   run: |
-    #     cd project
-    #     sed -i 's/\r$//' ../scripts/install_prebuilt_apks.sh
-    #     bash ../scripts/install_prebuilt_apks.sh "$(pwd)" "$GITHUB_WORKSPACE"
+    - name: Install unsigned prebuilt eMMC tools
+      run: |
+        cd project
+        sed -i 's/\r$//' ../scripts/install_prebuilt_apks.sh
+        bash ../scripts/install_prebuilt_apks.sh "$(pwd)" "$GITHUB_WORKSPACE"
 
     - name: Compile uboot and kernel
       run: |

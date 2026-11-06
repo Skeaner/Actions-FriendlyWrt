@@ -31,6 +31,33 @@ install_rtw88_build_patch() {
 
 install_rtw88_build_patch
 
+install_usbdrd_host_mode() {
+  local DTS="kernel/arch/arm64/boot/dts/rockchip/rk3528-nanopi-rev03.dts"
+
+  [ -f "$DTS" ] || return 0
+
+  awk '
+    /^[[:space:]]*&usbdrd_dwc3[[:space:]]*\{/ {
+      in_node = 1
+      next
+    }
+    in_node && /^[[:space:]]*dr_mode[[:space:]]*=.*;[[:space:]]*$/ {
+      found = 1
+      exit
+    }
+    in_node && /^[[:space:]]*\}[[:space:]]*$/ {
+      exit
+    }
+    END {
+      exit(found ? 0 : 1)
+    }
+  ' "$DTS" && return 0
+
+  sed -i '/^[[:space:]]*&usbdrd_dwc3[[:space:]]*{[[:space:]]*$/a\	dr_mode = "host";' "$DTS"
+}
+
+install_usbdrd_host_mode
+
 CONFIGS=(
   "CONFIG_NET_ACT_CT=m"
   "CONFIG_NET_ACT_CTINFO=m"
