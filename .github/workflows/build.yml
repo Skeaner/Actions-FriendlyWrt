@@ -390,6 +390,7 @@ jobs:
         TARGET_IMAGE_DIRNAME=${DIST_DIR}
         TARGET_FRIENDLYWRT_CONFIG=${CONFIG}
         TARGET_SD_RAW_FILENAME=${IMG_FILE}
+        FRIENDLYWRT_FILES+=(device/common/emmc-tools)
         EOL
 
         echo "img_filename=$IMG_FILE" >> $GITHUB_OUTPUT
@@ -408,12 +409,6 @@ jobs:
         cd project
         SUFFIX="${{ matrix.SET == 'docker' && '-docker' || '' }}"
         tar xzf "../host-pm-${{ matrix.VERSION }}${SUFFIX}.tgz"
-
-    - name: Install unsigned prebuilt eMMC tools
-      run: |
-        cd project
-        sed -i 's/\r$//' ../scripts/install_prebuilt_apks.sh
-        bash ../scripts/install_prebuilt_apks.sh "$(pwd)" "$GITHUB_WORKSPACE"
 
     - name: Compile uboot and kernel
       run: |
