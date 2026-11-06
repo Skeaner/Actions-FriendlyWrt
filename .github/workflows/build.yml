@@ -266,8 +266,8 @@ jobs:
         overwrite: true
 
   build_img:
-    # needs: [prepare_release, build_friendlywrt]
-    needs: [prepare_release]
+    needs: [prepare_release, build_friendlywrt]
+    # needs: [prepare_release]
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
 
