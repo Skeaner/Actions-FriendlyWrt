@@ -469,22 +469,22 @@ jobs:
         tag: ${{ needs.prepare_release.outputs.release_tag }}
         overwrite: true
 
-  cleanup_intermediate_assets:
-    needs: [prepare_release, build_img]
-    runs-on: ubuntu-22.04
-    if: github.event.repository.owner.id == github.event.sender.id
-    steps:
-    - name: Delete intermediate assets from release
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
-      run: |
-        gh release view "$RELEASE_TAG" \
-          --repo "$GITHUB_REPOSITORY" \
-          --json assets \
-          --jq '.assets[] | select(.name | startswith("rootfs-friendlywrt-") or startswith("host-pm-")) | .name' \
-        | while read -r asset; do
-            [ -z "$asset" ] && continue
-            echo "Deleting asset: $asset"
-            gh release delete-asset "$RELEASE_TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY"
-          done
+  # cleanup_intermediate_assets:
+  #   needs: [prepare_release, build_img]
+  #   runs-on: ubuntu-22.04
+  #   if: github.event.repository.owner.id == github.event.sender.id
+  #   steps:
+  #   - name: Delete intermediate assets from release
+  #     env:
+  #       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+  #     run: |
+  #       gh release view "$RELEASE_TAG" \
+  #         --repo "$GITHUB_REPOSITORY" \
+  #         --json assets \
+  #         --jq '.assets[] | select(.name | startswith("rootfs-friendlywrt-") or startswith("host-pm-")) | .name' \
+  #       | while read -r asset; do
+  #           [ -z "$asset" ] && continue
+  #           echo "Deleting asset: $asset"
+  #           gh release delete-asset "$RELEASE_TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY"
+  #         done
