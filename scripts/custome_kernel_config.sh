@@ -36,24 +36,26 @@ install_usbdrd_host_mode() {
 
   [ -f "$DTS" ] || return 0
 
+  # Patch &usbdrd_dwc3 in kernel DTS during build
   awk '
     /^[[:space:]]*&usbdrd_dwc3[[:space:]]*\{/ {
+      print
+      print "\tdr_mode = \"host\";"
+      print "\t/delete-property/ extcon;"
+      print "\tstatus = \"okay\";"
       in_node = 1
       next
     }
-    in_node && /^[[:space:]]*dr_mode[[:space:]]*=.*;[[:space:]]*$/ {
-      found = 1
-      exit
+    in_node && /^[[:space:]]*dr_mode[[:space:]]*=/ { next }
+    in_node && /^[[:space:]]*status[[:space:]]*=/ { next }
+    in_node && /^[[:space:]]*\/delete-property\/[[:space:]]*extcon;/ { next }
+    in_node && /^[[:space:]]*\};/ {
+      in_node = 0
+      print
+      next
     }
-    in_node && /^[[:space:]]*\}[[:space:]]*$/ {
-      exit
-    }
-    END {
-      exit(found ? 0 : 1)
-    }
-  ' "$DTS" && return 0
-
-  sed -i '/^[[:space:]]*&usbdrd_dwc3[[:space:]]*{[[:space:]]*$/a\	dr_mode = "host";' "$DTS"
+    { print }
+  ' "$DTS" > "${DTS}.tmp" && mv "${DTS}.tmp" "$DTS"
 }
 
 install_usbdrd_host_mode
@@ -61,6 +63,13 @@ install_usbdrd_host_mode
 CONFIGS=(
   "CONFIG_NET_ACT_CT=m"
   "CONFIG_NET_ACT_CTINFO=m"
+  "CONFIG_USB_NET_DRIVERS=y"
+  "CONFIG_USB_RTL8152=m"
+  "CONFIG_USB_NET_AX88179_178A=m"
+  "CONFIG_USB_NET_CDCETHER=m"
+  "CONFIG_USB_NET_CDC_NCM=m"
+  "CONFIG_USB_NET_RNDIS_HOST=m"
+  "CONFIG_USB_IPHETH=m"
 )
 
 source .current_config.mk
